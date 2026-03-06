@@ -4,12 +4,14 @@ from database.connection import engine, Base
 from models.user import User
 from models.test_connection import test_connection
 from routes.user import router as user_router
+from routes.interview import router as interview_router
 
 app = FastAPI()
 
 # Include routes
 app.include_router(test_router)
 app.include_router(user_router)
+app.include_router(interview_router)
 
 @app.get("/")
 def home():
