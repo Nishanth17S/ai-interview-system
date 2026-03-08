@@ -1,36 +1,26 @@
 from fastapi import APIRouter
-from utils.ai_engine import generate_question as ai_generate_question
-from utils.ai_engine import evaluate_answer
+from pydantic import BaseModel
+from utils.ai_engine import generate_interview_question, evaluate_answer
 
-router = APIRouter(
-    prefix="/interview",
-    tags=["Interview"]
-)
+router = APIRouter()
 
-# ---------------------------------
-# Generate Interview Question
-# ---------------------------------
+
+class AnswerRequest(BaseModel):
+    question: str
+    answer: str
+
+
 @router.post("/question")
-def generate_question(role: str, difficulty: str):
+def get_question(role: str, difficulty: str):
 
-    question = ai_generate_question(role, difficulty)
+    question = generate_interview_question(role, difficulty)
 
-    return {
-        "role": role,
-        "difficulty": difficulty,
-        "question": question
-    }
+    return {"question": question}
 
 
-# ---------------------------------
-# Evaluate Candidate Answer
-# ---------------------------------
 @router.post("/evaluate")
-def evaluate(question: str, answer: str):
+def evaluate_candidate_answer(data: AnswerRequest):
 
-    result = evaluate_answer(question, answer)
+    evaluation = evaluate_answer(data.question, data.answer)
 
-    return {
-        "score": result["score"],
-        "feedback": result["feedback"]
-    }
+    return {"evaluation": evaluation}

@@ -1,57 +1,48 @@
 import os
 from groq import Groq
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
 
 # Initialize Groq client
-client = Groq(
-    api_key=os.getenv("GROQ_API_KEY")
-)
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-# ---------------------------------
-# Generate Interview Question
-# ---------------------------------
-def generate_question(role: str, difficulty: str):
+
+def generate_interview_question(role: str, difficulty: str):
+    """
+    Generate a single interview question based on role and difficulty
+    """
 
     prompt = f"""
 You are an expert technical interviewer.
 
-Generate ONE interview question.
+Generate ONE {difficulty} level interview question for a {role} candidate.
 
-Role: {role}
-Difficulty: {difficulty}
-
-Return only the question.
+Rules:
+- Return only the question
+- Do not include explanations
+- Do not include numbering
 """
 
-    try:
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
+    completion = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7,
+    )
 
-        question = response.choices[0].message.content.strip()
+    question = completion.choices[0].message.content.strip()
 
-        return question
-
-    except Exception as e:
-        print("❌ Groq Question Generation Error:", e)
-        return "Unable to generate question right now."
+    return question
 
 
-# ---------------------------------
-# Evaluate Candidate Answer
-# ---------------------------------
 def evaluate_answer(question: str, answer: str):
+    """
+    Evaluate candidate answer using AI
+    """
 
     prompt = f"""
-You are a strict technical interviewer.
+You are an AI technical interviewer.
 
-Evaluate the candidate answer.
+Evaluate the candidate's answer.
 
 Question:
 {question}
@@ -59,49 +50,22 @@ Question:
 Candidate Answer:
 {answer}
 
-Return the result exactly in this format:
+Provide feedback in this format:
 
-Score: <number between 0 and 10>
-Feedback: <short explanation>
+Score: (0-10)
+Strengths:
+Weaknesses:
+Suggestions for improvement:
 """
 
-    try:
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
+    completion = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7,
+    )
 
-        evaluation = response.choices[0].message.content.strip()
+    evaluation = completion.choices[0].message.content.strip()
 
-        # -------------------------------
-        # Convert AI output to structured data
-        # -------------------------------
-        score = None
-        feedback = ""
-
-        lines = evaluation.split("\n")
-
-        for line in lines:
-            if "Score" in line:
-                try:
-                    score = int(line.split(":")[1].strip())
-                except:
-                    score = None
-
-            if "Feedback" in line:
-                feedback = line.split(":", 1)[1].strip()
-
-        return {
-            "score": score,
-            "feedback": feedback
-        }
-
-    except Exception as e:
-        print("❌ Groq Answer Evaluation Error:", e)
-
-        return {
-            "score": None,
-            "feedback": "Evaluation failed."
-        }
+    return evaluation

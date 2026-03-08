@@ -1,25 +1,25 @@
 from fastapi import FastAPI
-from routes.test import router as test_router
-from database.connection import engine, Base
-from models.user import User
-from models.test_connection import test_connection
-from routes.user import router as user_router
-from routes.interview import router as interview_router
+from fastapi.middleware.cors import CORSMiddleware
+
+from routes import user
+from routes import interview
 
 app = FastAPI()
 
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # allow frontend
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Include routes
-app.include_router(test_router)
-app.include_router(user_router)
-app.include_router(interview_router)
+app.include_router(user.router, prefix="/users", tags=["Users"])
+app.include_router(interview.router, prefix="/interview", tags=["Interview"])
+
 
 @app.get("/")
-def home():
-    return {"message": "AI Interview Backend Running"}
-
-# Run on startup
-@app.on_event("startup")
-def startup_event():
-    test_connection()
-    Base.metadata.create_all(bind=engine)
-    print("✅ Tables created successfully!")
+def root():
+    return {"message": "AI Interview System API running"}
