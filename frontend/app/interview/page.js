@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import WebcamFeed from "@/components/WebcamFeed";
 import InterviewAnalytics from "@/components/InterviewAnalytics";
+import AvatarInterviewer from "@/components/AvatarInterviewer";
 
 export default function InterviewPage() {
 
@@ -21,6 +22,9 @@ export default function InterviewPage() {
 
   const recognitionRef = useRef(null);
 
+  const [speaking, setSpeaking] = useState(false);
+  const [mouthOpen, setMouthOpen] = useState(0);
+
   const [metrics, setMetrics] = useState({
     timestamps: [],
     confidence: [],
@@ -30,7 +34,7 @@ export default function InterviewPage() {
   });
 
   // -----------------------------
-  // AI TEXT TO SPEECH
+  // AI TEXT TO SPEECH + LIP SYNC
   // -----------------------------
 
   const speakQuestion = (text) => {
@@ -44,17 +48,17 @@ export default function InterviewPage() {
     if (interviewer === "male") {
 
       selectedVoice = voices.find(v =>
-        v.name.includes("David") ||
         v.name.includes("Male") ||
-        v.name.includes("Google US")
+        v.name.includes("David") ||
+        v.name.includes("Google")
       );
 
     } else {
 
       selectedVoice = voices.find(v =>
-        v.name.includes("Zira") ||
         v.name.includes("Female") ||
-        v.name.includes("Google UK")
+        v.name.includes("Zira") ||
+        v.name.includes("Google")
       );
 
     }
@@ -62,6 +66,22 @@ export default function InterviewPage() {
     if (selectedVoice) utterance.voice = selectedVoice;
 
     utterance.rate = 0.9;
+
+    setSpeaking(true);
+
+    // lip sync simulation
+    const interval = setInterval(() => {
+      setMouthOpen(Math.random());
+    }, 120);
+
+    utterance.onend = () => {
+
+      setSpeaking(false);
+      setMouthOpen(0);
+
+      clearInterval(interval);
+
+    };
 
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
@@ -125,7 +145,7 @@ export default function InterviewPage() {
   };
 
   // -----------------------------
-  // FETCH QUESTION
+  // FETCH QUESTION FROM BACKEND
   // -----------------------------
 
   const fetchQuestion = async () => {
@@ -143,7 +163,7 @@ export default function InterviewPage() {
 
       setTimeout(() => {
         speakQuestion(data.question);
-      }, 500);
+      }, 400);
 
     }
 
@@ -190,7 +210,6 @@ export default function InterviewPage() {
     if (currentQuestionIndex < questionCount) {
 
       setCurrentQuestionIndex(currentQuestionIndex + 1);
-
       setAnswer("");
 
       fetchQuestion();
@@ -198,7 +217,6 @@ export default function InterviewPage() {
     } else {
 
       recognitionRef.current?.stop();
-
       window.speechSynthesis.cancel();
 
       setInterviewFinished(true);
@@ -226,9 +244,9 @@ export default function InterviewPage() {
       setMetrics(prev => ({
 
         timestamps: [...prev.timestamps, time],
-        confidence: [...prev.confidence, Math.random()*100],
-        eyeContact: [...prev.eyeContact, Math.random()*100],
-        smile: [...prev.smile, Math.random()*100],
+        confidence: [...prev.confidence, Math.random() * 100],
+        eyeContact: [...prev.eyeContact, Math.random() * 100],
+        smile: [...prev.smile, Math.random() * 100],
         speechRate: [...prev.speechRate, speechRate]
 
       }));
@@ -366,30 +384,25 @@ export default function InterviewPage() {
 
       <div className="grid grid-cols-2 gap-8">
 
-        {/* AI Interviewer */}
+        {/* AI Interviewer Panel */}
 
         <div className="bg-zinc-900 p-6 rounded-xl text-center">
 
           <h2 className="text-xl mb-4">AI Interviewer</h2>
 
-          <img
-            src={
-              interviewer === "male"
-                ? "/avatars/male.png"
-                : "/avatars/female.png"
-            }
-            className="w-40 mx-auto mb-6 rounded-full"
+          <AvatarInterviewer
+            interviewer={interviewer}
+            speaking={speaking}
+            mouthOpen={mouthOpen}
           />
 
-          <div className="bg-zinc-800 p-6 rounded-lg">
-
+          <div className="bg-zinc-800 p-6 rounded-lg mt-6">
             {question}
-
           </div>
 
         </div>
 
-        {/* Candidate Webcam */}
+        {/* Candidate Webcam Panel */}
 
         <div className="bg-zinc-900 p-6 rounded-xl">
 
@@ -408,6 +421,7 @@ export default function InterviewPage() {
         <textarea
           className="w-full bg-zinc-800 p-4 rounded-lg"
           rows="5"
+          placeholder="Speak or type your answer..."
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
         />
