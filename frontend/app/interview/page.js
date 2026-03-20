@@ -20,23 +20,26 @@ export default function InterviewPage() {
 
   const [results, setResults] = useState([]);
 
+  const [report, setReport] = useState(null);
+
   const recognitionRef = useRef(null);
 
   const [speaking, setSpeaking] = useState(false);
   const [mouthOpen, setMouthOpen] = useState(0);
 
+  // 🔥 Metrics storage
   const [metrics, setMetrics] = useState({
     timestamps: [],
     confidence: [],
     eyeContact: [],
     smile: [],
-    speechRate: []
+    speechRate: [],
+    emotion: []
   });
 
   // -----------------------------
-  // AI TEXT TO SPEECH + LIP SYNC
+  // AI SPEECH + LIP SYNC
   // -----------------------------
-
   const speakQuestion = (text) => {
 
     const utterance = new SpeechSynthesisUtterance(text);
@@ -46,21 +49,13 @@ export default function InterviewPage() {
     let selectedVoice;
 
     if (interviewer === "male") {
-
       selectedVoice = voices.find(v =>
-        v.name.includes("Male") ||
-        v.name.includes("David") ||
-        v.name.includes("Google")
+        v.name.includes("Male") || v.name.includes("David")
       );
-
     } else {
-
       selectedVoice = voices.find(v =>
-        v.name.includes("Female") ||
-        v.name.includes("Zira") ||
-        v.name.includes("Google")
+        v.name.includes("Female") || v.name.includes("Zira")
       );
-
     }
 
     if (selectedVoice) utterance.voice = selectedVoice;
@@ -69,29 +64,23 @@ export default function InterviewPage() {
 
     setSpeaking(true);
 
-    // lip sync simulation
     const interval = setInterval(() => {
       setMouthOpen(Math.random());
     }, 120);
 
     utterance.onend = () => {
-
       setSpeaking(false);
       setMouthOpen(0);
-
       clearInterval(interval);
-
     };
 
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
-
   };
 
   // -----------------------------
   // SPEECH RECOGNITION
   // -----------------------------
-
   useEffect(() => {
 
     const SpeechRecognition =
@@ -119,11 +108,9 @@ export default function InterviewPage() {
         } else {
           interimTranscript += transcript;
         }
-
       }
 
       setAnswer(finalTranscript + interimTranscript);
-
     };
 
     recognitionRef.current = recognition;
@@ -131,23 +118,18 @@ export default function InterviewPage() {
   }, []);
 
   const startListening = () => {
-
     recognitionRef.current.start();
     setListening(true);
-
   };
 
   const stopListening = () => {
-
     recognitionRef.current.stop();
     setListening(false);
-
   };
 
   // -----------------------------
-  // FETCH QUESTION FROM BACKEND
+  // FETCH QUESTION
   // -----------------------------
-
   const fetchQuestion = async () => {
 
     const res = await fetch(
@@ -158,29 +140,20 @@ export default function InterviewPage() {
     const data = await res.json();
 
     if (data.question) {
-
       setQuestion(data.question);
-
-      setTimeout(() => {
-        speakQuestion(data.question);
-      }, 400);
-
+      setTimeout(() => speakQuestion(data.question), 400);
     }
-
   };
 
   useEffect(() => {
-
     if (interviewer && questionCount) {
       fetchQuestion();
     }
-
   }, [interviewer, questionCount]);
 
   // -----------------------------
   // EVALUATE ANSWER
   // -----------------------------
-
   const evaluateAnswer = async () => {
 
     const res = await fetch(
@@ -200,9 +173,43 @@ export default function InterviewPage() {
     const data = await res.json();
 
     setResults(prev => [...prev, data.evaluation || "No feedback"]);
-
   };
 
+  // -----------------------------
+  // GENERATE FINAL REPORT
+  // -----------------------------
+  const generateReport = async () => {
+
+    try {
+
+      const payload = {
+        confidence: metrics.confidence,
+        eye_contact: metrics.eyeContact,
+        smile: metrics.smile,
+        speech_rate: metrics.speechRate,
+        emotion: metrics.emotion
+      };
+
+      const res = await fetch("http://127.0.0.1:8000/interview/feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      setReport(data.report);
+
+    } catch (err) {
+      console.error("Report error:", err);
+    }
+  };
+
+  // -----------------------------
+  // SUBMIT ANSWER
+  // -----------------------------
   const handleSubmit = async () => {
 
     await evaluateAnswer();
@@ -211,7 +218,6 @@ export default function InterviewPage() {
 
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       setAnswer("");
-
       fetchQuestion();
 
     } else {
@@ -219,16 +225,15 @@ export default function InterviewPage() {
       recognitionRef.current?.stop();
       window.speechSynthesis.cancel();
 
+      await generateReport();
+
       setInterviewFinished(true);
-
     }
-
   };
 
   // -----------------------------
   // METRICS COLLECTION
   // -----------------------------
-
   useEffect(() => {
 
     if (interviewFinished) return;
@@ -242,13 +247,12 @@ export default function InterviewPage() {
       const speechRate = words * 6;
 
       setMetrics(prev => ({
-
         timestamps: [...prev.timestamps, time],
         confidence: [...prev.confidence, Math.random() * 100],
         eyeContact: [...prev.eyeContact, Math.random() * 100],
         smile: [...prev.smile, Math.random() * 100],
-        speechRate: [...prev.speechRate, speechRate]
-
+        speechRate: [...prev.speechRate, speechRate],
+        emotion: [...prev.emotion, "neutral"]
       }));
 
     }, 4000);
@@ -258,9 +262,8 @@ export default function InterviewPage() {
   }, [answer, interviewFinished]);
 
   // -----------------------------
-  // FINAL REPORT SCREEN
+  // FINAL SCREEN
   // -----------------------------
-
   if (interviewFinished) {
 
     return (
@@ -271,196 +274,142 @@ export default function InterviewPage() {
           Interview Completed
         </h1>
 
-        {results.map((r, i) => (
+        {/* AI REPORT */}
+        {report && (
+          <div className="bg-zinc-900 p-6 rounded-lg mb-6">
 
-          <div
-            key={i}
-            className="bg-zinc-900 p-6 rounded-lg mb-4"
-          >
+            <h2 className="text-xl font-bold mb-4">
+              AI Interview Report
+            </h2>
+
+            <p>Confidence: {report.confidence}%</p>
+            <p>Eye Contact: {report.eye_contact}%</p>
+            <p>Smile: {report.smile}%</p>
+            <p>Speech Clarity: {report.speech_clarity}%</p>
+            <p>Emotion: {report.emotion}</p>
+
+            <div className="mt-4">
+              <h3 className="font-semibold">Strengths</h3>
+              <ul>
+                {report.strengths.map((s, i) => (
+                  <li key={i}>• {s}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="mt-4">
+              <h3 className="font-semibold">Weaknesses</h3>
+              <ul>
+                {report.weaknesses.map((w, i) => (
+                  <li key={i}>• {w}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="mt-4">
+              <h3 className="font-semibold">Suggestions</h3>
+              <ul>
+                {report.suggestions.map((s, i) => (
+                  <li key={i}>• {s}</li>
+                ))}
+              </ul>
+            </div>
+
+          </div>
+        )}
+
+        {/* ANSWER FEEDBACK */}
+        {results.map((r, i) => (
+          <div key={i} className="bg-zinc-900 p-6 rounded-lg mb-4">
             <p className="text-gray-300 whitespace-pre-wrap">
               {r}
             </p>
           </div>
-
         ))}
 
+        {/* GRAPH */}
         <InterviewAnalytics metrics={metrics} />
 
       </div>
-
     );
-
   }
 
   // -----------------------------
   // SELECT INTERVIEWER
   // -----------------------------
-
   if (!interviewer) {
-
     return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white">
+        <h1 className="text-4xl mb-6">Choose Interviewer</h1>
 
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
+        <button onClick={() => setInterviewer("male")}>
+          👨 Male
+        </button>
 
-        <h1 className="text-4xl mb-10 font-bold">
-          Choose AI Interviewer
-        </h1>
-
-        <div className="flex gap-10">
-
-          <button
-            onClick={() => setInterviewer("male")}
-            className="bg-zinc-800 p-10 rounded-xl"
-          >
-            👨 Male Interviewer
-          </button>
-
-          <button
-            onClick={() => setInterviewer("female")}
-            className="bg-zinc-800 p-10 rounded-xl"
-          >
-            👩 Female Interviewer
-          </button>
-
-        </div>
-
+        <button onClick={() => setInterviewer("female")}>
+          👩 Female
+        </button>
       </div>
-
     );
-
   }
 
   // -----------------------------
   // SELECT QUESTION COUNT
   // -----------------------------
-
   if (!questionCount) {
-
     return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white">
+        <h1 className="text-3xl mb-4">Number of Questions</h1>
 
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
-
-        <h1 className="text-3xl mb-8 font-bold">
-          Select Number of Questions
-        </h1>
-
-        <div className="flex gap-4">
-
-          {[3,4,5,6,7,8,9,10].map(n => (
-
-            <button
-              key={n}
-              onClick={() => setQuestionCount(n)}
-              className="bg-blue-600 px-6 py-3 rounded-lg"
-            >
-              {n}
-            </button>
-
-          ))}
-
-        </div>
-
+        {[3,4,5,6,7,8,9,10].map(n => (
+          <button key={n} onClick={() => setQuestionCount(n)}>
+            {n}
+          </button>
+        ))}
       </div>
-
     );
-
   }
 
   // -----------------------------
   // MAIN INTERVIEW UI
   // -----------------------------
-
   return (
 
     <div className="min-h-screen bg-black text-white p-8">
 
-      <h1 className="text-3xl text-center mb-4 font-bold">
+      <h1 className="text-3xl text-center mb-4">
         AI Mock Interview
       </h1>
 
-      <p className="text-center text-gray-400 mb-8">
-        Question {currentQuestionIndex} / {questionCount}
-      </p>
-
       <div className="grid grid-cols-2 gap-8">
 
-        {/* AI Interviewer Panel */}
-
-        <div className="bg-zinc-900 p-6 rounded-xl text-center">
-
-          <h2 className="text-xl mb-4">AI Interviewer</h2>
-
+        <div>
           <AvatarInterviewer
             interviewer={interviewer}
             speaking={speaking}
-            mouthOpen={mouthOpen}
           />
 
-          <div className="bg-zinc-800 p-6 rounded-lg mt-6">
-            {question}
-          </div>
-
+          <p className="mt-4">{question}</p>
         </div>
 
-        {/* Candidate Webcam Panel */}
-
-        <div className="bg-zinc-900 p-6 rounded-xl">
-
-          <h2 className="text-xl mb-4">Candidate</h2>
-
-          <WebcamFeed interviewFinished={interviewFinished} />
-
-        </div>
+        <WebcamFeed interviewFinished={interviewFinished} />
 
       </div>
 
-      {/* Answer Section */}
+      <textarea
+        className="w-full mt-6 bg-gray-800 p-4"
+        value={answer}
+        onChange={(e) => setAnswer(e.target.value)}
+      />
 
-      <div className="mt-8 bg-zinc-900 p-6 rounded-xl">
-
-        <textarea
-          className="w-full bg-zinc-800 p-4 rounded-lg"
-          rows="5"
-          placeholder="Speak or type your answer..."
-          value={answer}
-          onChange={(e) => setAnswer(e.target.value)}
-        />
-
-        <div className="flex gap-4 mt-4">
-
-          <button
-            onClick={startListening}
-            className="bg-green-600 px-6 py-2 rounded-lg"
-          >
-            🎤 Start Speaking
-          </button>
-
-          <button
-            onClick={stopListening}
-            className="bg-red-600 px-6 py-2 rounded-lg"
-          >
-            Stop
-          </button>
-
-          <button
-            onClick={handleSubmit}
-            className="bg-blue-600 px-6 py-2 rounded-lg"
-          >
-            Submit
-          </button>
-
-        </div>
-
-        {listening && (
-          <p className="text-green-400 mt-2">
-            🎤 Listening...
-          </p>
-        )}
-
+      <div className="flex gap-4 mt-4">
+        <button onClick={startListening}>Start</button>
+        <button onClick={stopListening}>Stop</button>
+        <button onClick={handleSubmit}>Submit</button>
       </div>
+
+      {listening && <p>🎤 Listening...</p>}
 
     </div>
-
   );
-
 }
